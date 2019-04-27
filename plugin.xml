@@ -17,7 +17,5 @@
         <source-file src="src/android/org/sunbird/openrap/asynctask/ConnectToOpenrapAsyncTask.java" target-dir="src/org/sunbird/openrap/asynctask" />
         <source-file src="src/android/org/sunbird/openrap/nsd/OpenrapDiscoveryHelper.java" target-dir="src/org/sunbird/openrap/nsd" />
         <source-file src="src/android/org/sunbird/openrap/nsd/OpenrapDiscoveryListener.java" target-dir="src/org/sunbird/openrap/nsd" />
-        <source-file src="src/android/org/sunbird/openrap/SDKParams.java" target-dir="src/org/sunbird/openrap" />
-        <source-file src="src/android/org/sunbird/openrap/PreferenceUtil.java" target-dir="src/org/sunbird/openrap" />
     </platform>
 </plugin>

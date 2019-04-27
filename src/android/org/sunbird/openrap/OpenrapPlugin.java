@@ -1,17 +1,20 @@
 package org.sunbird.openrap;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.nsd.NsdServiceInfo;
+import android.util.Log;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
-import org.ekstep.genieservices.GenieService;
-import org.ekstep.genieservices.commons.bean.GenericEvent;
-import org.ekstep.genieservices.eventbus.EventBus;
+import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.sunbird.openrap.nsd.OpenrapDiscoveryHelper;
 import org.sunbird.openrap.nsd.OpenrapDiscoveryListener;
+
+import java.util.ArrayList;
 
 
 public class OpenrapPlugin extends CordovaPlugin implements OpenrapDiscoveryListener {
@@ -19,20 +22,22 @@ public class OpenrapPlugin extends CordovaPlugin implements OpenrapDiscoveryList
     private static final String KEY_OPEN_RAP_HOST = "open_rap_host";
     private static final String KEY_OPEN_RAP_PORT = "open_rap_port";
     private static String openRapHost;
+    private static final String SHARED_PREF_NAME = "openrap";
 
     public static JSONObject jsonObject = new JSONObject();
+    private ArrayList<CallbackContext> mHandler = new ArrayList<>();
+    private JSONObject mLastEvent;
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
         if (args.get(0).equals("startDiscovery")) {
-            this.startDiscovery(callbackContext);
-
+            this.startDiscovery();
+            mHandler.add(callbackContext);
         }
         return true;
     }
 
-    private void startDiscovery(CallbackContext callbackContext) {
-        PreferenceUtil.initPreference(this.cordova.getActivity());
+    private void startDiscovery() {
         new OpenrapDiscoveryHelper(this.cordova.getActivity(), this).startDiscovery("_openrap._tcp",
                 "Open Resource Access Point");
     }
@@ -54,8 +59,8 @@ public class OpenrapPlugin extends CordovaPlugin implements OpenrapDiscoveryList
 
     @Override
     public void onConnectedToService(NsdServiceInfo connectedServiceInfo) {
-        PreferenceUtil.getPreferenceWrapper().putString(KEY_OPEN_RAP_HOST, connectedServiceInfo.getHost().toString());
-        PreferenceUtil.getPreferenceWrapper().putInt(KEY_OPEN_RAP_PORT, connectedServiceInfo.getPort());
+        getSharedPreferences(cordova.getContext()).edit().putString(KEY_OPEN_RAP_HOST, connectedServiceInfo.getHost().toString()).apply();
+        getSharedPreferences(cordova.getContext()).edit().putInt(KEY_OPEN_RAP_PORT, connectedServiceInfo.getPort()).apply();
         setParams();
 
        try {
@@ -64,48 +69,49 @@ public class OpenrapPlugin extends CordovaPlugin implements OpenrapDiscoveryList
         } catch (JSONException e) {
             e.printStackTrace();
         }
-
-        EventBus.postEvent(new GenericEvent(jsonObject.toString()));
+        mLastEvent = jsonObject;
+        consumeEvents();
 
     }
 
     @Override
     public void onNsdServiceLost(NsdServiceInfo nsdServiceInfo) {
-        GenieService.setParams(null);
-
         try {
             jsonObject.put("actionType","disconnected");
             jsonObject.put("ip",openRapHost);
         } catch (JSONException e) {
             e.printStackTrace();
         }
-
-        EventBus.postEvent(new GenericEvent(jsonObject.toString()));
+        mLastEvent = jsonObject;
+        consumeEvents();
 
     }
 
     public void setParams() {
-        SDKParams sdkParams = new SDKParams();
 
-        openRapHost = PreferenceUtil.getPreferenceWrapper().getString(KEY_OPEN_RAP_HOST, null);
+        openRapHost = getSharedPreferences(cordova.getContext()).getString(KEY_OPEN_RAP_HOST, null);
 
         // int port = PreferenceUtil.getPreferenceWrapper().getInt(KEY_OPEN_RAP_PORT,0);
         openRapHost = openRapHost.replace("/", "http://");
 
+    }
 
-        String telemetryBaseurl = openRapHost + "/api/data/v1";
-        sdkParams.put(SDKParams.Key.TELEMETRY_BASE_URL, telemetryBaseurl);
+    public SharedPreferences getSharedPreferences(Context context) {
+        return context.getSharedPreferences(SHARED_PREF_NAME, Context.MODE_PRIVATE);
+    }
 
-        String contentBaseUrl = openRapHost + "/api/content/v1";
-        sdkParams.put(SDKParams.Key.CONTENT_BASE_URL, contentBaseUrl);
+    private void consumeEvents() {
+        if (this.mHandler.size() == 0 || mLastEvent == null) {
+            return;
+        }
 
-        String searchBaseUrl = openRapHost + "/api/composite/v1";
-        sdkParams.put(SDKParams.Key.SEARCH_BASE_URL, searchBaseUrl);
+        for (CallbackContext callback : this.mHandler) {
+            final PluginResult result = new PluginResult(PluginResult.Status.OK, mLastEvent);
+            result.setKeepCallback(true);
+            callback.sendPluginResult(result);
+        }
 
-        String pageServiceBaseUrl = openRapHost + "/api/data/v1";
-        sdkParams.put(SDKParams.Key.PAGE_SERVICE_BASE_URL, pageServiceBaseUrl);
-
-        GenieService.setParams(sdkParams);
+        mLastEvent = null;
     }
 
 }
