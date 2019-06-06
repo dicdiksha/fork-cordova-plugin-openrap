@@ -23,27 +23,7 @@ public class OpenrapDiscoveryHelper {
     private Context mContext;
     private String mDiscoveryServiceType;
     private boolean mDiscoveryStarted = false;
-    private OpenrapDiscoveryListener mNsdListener; 
-
-    private ResolveListener mResolveListener = new ResolveListener() {
-
-        @Override
-        public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
-
-        }
-
-        @Override
-        public void onServiceResolved(NsdServiceInfo serviceInfo) {
-            mHostAddress = serviceInfo.getHost();
-            mHostPort = serviceInfo.getPort();
-
-            if (mNsdListener != null) {
-                mNsdListener.onNsdServiceResolved(serviceInfo);
-            }
-
-            connectToHost(serviceInfo);
-        }
-    };
+    private OpenrapDiscoveryListener mNsdListener;
 
     private DiscoveryListener mDiscoveryListener = new DiscoveryListener() {
 
@@ -59,7 +39,7 @@ public class OpenrapDiscoveryHelper {
 
         @Override
         public void onDiscoveryStarted(String serviceType) {
-
+            Log.d(TAG,"Discovery Started");
         }
 
         @Override
@@ -70,12 +50,14 @@ public class OpenrapDiscoveryHelper {
         @Override
         public void onServiceFound(final NsdServiceInfo serviceInfo) {
             Log.d(TAG, "onServiceFound: ");
+            try{
+                resolveService(serviceInfo);
+                if (mNsdListener != null) {
+                     mNsdListener.onNsdServiceFound(serviceInfo);
+                }
+            }catch (IllegalArgumentException e){
 
-            if (mNsdListener != null) {
-                mNsdListener.onNsdServiceFound(serviceInfo);
             }
-
-            resolveService(serviceInfo);
         }
 
         @Override
@@ -113,7 +95,25 @@ public class OpenrapDiscoveryHelper {
     }
 
     private void resolveService(NsdServiceInfo nsdServiceInfo) {
-        mNsdManager.resolveService(nsdServiceInfo, mResolveListener);
+//        mNsdManager.resolveService(nsdServiceInfo, mResolveListener);
+        mNsdManager.resolveService(nsdServiceInfo, new NsdManager.ResolveListener() {
+            @Override
+            public void onResolveFailed(NsdServiceInfo serviceInfo, int errorCode) {
+                Log.e(TAG, "Resolve Failed: " + serviceInfo);
+            }
+            @Override
+            public void onServiceResolved(NsdServiceInfo serviceInfo) {
+                Log.i(TAG, "Service Resolved: " + serviceInfo);
+                mHostAddress = serviceInfo.getHost();
+                mHostPort = serviceInfo.getPort();
+
+                if (mNsdListener != null) {
+                    mNsdListener.onNsdServiceResolved(serviceInfo);
+                }
+
+                connectToHost(serviceInfo);
+            }
+        });
     }
 
     private void connectToHost(final NsdServiceInfo nsdServiceInfo) {
